@@ -1,16 +1,22 @@
-Net/SMTP/Server/Client2 version 0.01
+Net/SMTP/Server/Client2 version 0.02
 ====================================
 
-The README is used to introduce the module and provide instructions on
-how to install the module, any machine dependencies it may have (for
-example C compilers and installed libraries) and any other information
-that should be provided before the module is installed.
+Improved Net::SMTP::Server::Client module.
 
-A README file is required for CPAN modules since CPAN extracts the
-README file from a module distribution so that people browsing the
-archive can use it get an idea of the modules uses. It is usually a
-good idea to provide version information here so that people can
-decide whether fixes for the module are worth downloading.
+	* does not assume that any received message is 250:
+	  invocant must specify "okay" or "too_large" or "fail" or "basta"
+	  to accept, refuse for size, refuse for other reason, or close the
+	  connection.
+
+	* more rfc821 response codes implemented
+
+	* shuts down after fifteen syntax errors
+
+	* "get_message" instead of "process"
+
+	* "greet" instead of sending of greeting being
+	  part of set-up
+
 
 INSTALLATION
 
@@ -21,18 +27,11 @@ To install this module type the following:
    make test
    make install
 
-DEPENDENCIES
-
-This module requires these other modules and libraries:
-
-  blah blah blah
 
 COPYRIGHT AND LICENCE
 
-Put the correct copyright and licence information here.
+Habeeb J. Dihu  1999
+david nicol 2002
 
-Copyright (C) 2002 david
-
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself. 
+GPL/AL (the same terms as Perl itself.)
 

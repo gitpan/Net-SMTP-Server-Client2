@@ -3,13 +3,13 @@ package Net::SMTP::Server::Client2;
 use 5.001;
 use strict;
 
-use vars qw($VERSION @ISA @EXPORT);
+use vars qw($VERSION );
 
 use Carp;
 use IO::Socket;
 
 
-$VERSION = '0.1';
+$VERSION = '0.2';
 
 my %_cmds = (
 	    DATA => \&_data,
@@ -62,7 +62,14 @@ sub new {
 
 sub greet {
     
-    $_[0]->_put("220 Debatable SMTP Ready.");
+    $_[0]->_put("220 Debatable SMTP $VERSION Ready.");
+}
+
+sub basta{
+	my $self = shift;
+	$self -> _put("421 closing transmission channel");
+        $self->{SOCK}->close;
+	1;
 }
 
 # sub process {
@@ -75,24 +82,30 @@ sub get_message {
     
     while(<$sock>) {
 	print "$$ command: $_";
+	$$self{faults} > 15 and $self->basta and last;
 	# Clean up.
 	chomp;
 	s/^\s+//;
 	s/\s+$//;
-	goto bad unless length($_);
-	
+	unless(length $_){
+		++$$self{faults};
+		$self->greet;
+		next;
+	};
 	($cmd, @args) = split(/\s+/);
 	
 	$cmd =~ tr/a-z/A-Z/;
 	
 	if(!defined($_cmds{$cmd})) {
-	  bad:
+	    sleep ++$$self{faults};
 	    $self->_put("500 sorry, I don't know how to $cmd");
-	    next;
-	}
+	   next;
+	};
 	
-	return(defined($self->{MSG}) ? 1 : 0) unless
-	    &{$_cmds{$cmd}}($self, \@args);
+	# all commands return TRUE to indicate that
+	# we need to keep working to get the message.
+	&{$_cmds{$cmd}}($self, \@args) or 
+	    return(defined($self->{MSG}));
     }
 
     return undef;
@@ -102,7 +115,7 @@ sub find_addresses {
 	# find e-mail addresses in the arguments and return them.
 	# max one e-mail address per argument.
 	# print "looking for addresses in <@_>\n";
-	return map { /([^<|;]+\@[^>|;&]+)/ ? $1 : () } @_;
+	return map { /([^<|;]+\@[^>|;&,\s]+)/ ? $1 : () } @_;
 };
 
 sub okay {
@@ -125,16 +138,22 @@ sub _mail {
     my $who = shift @who;
     if ($who){
 	$self->{FROM} = $who;
-	return $self->okay("Envelope sender is <$who> ")
+	return $self->okay("Envelope sender set to <$who> ")
     }else{
 	$self->{faults}++;
-	return $self-> _put("501 could not find an e-mail address in @_")
+	return $self-> _put("501 could not find name\@postoffice in <@{$_[1]}>")
     };
+}
+
+sub rcpt_syntax{
+	$_[0] -> _put("553 no user\@host addresses found in <@{$_[1]}>");
 }
 
 sub _receipt {
     my $self = $_[0];
-    push @{ $self->{TO} }, find_addresses(@{$_[1]});
+    my @recipients = find_addresses(@{$_[1]});
+    @recipients or return $self->rcpt_syntax($_[1]);
+    push @{ $self->{TO} }, @recipients;
     $self->okay("sending to @{$self->{TO}}");
 }
 
@@ -144,13 +163,13 @@ sub _data {
     my @msg;
     
     if(!$self->{FROM}) {
-	$self-> _put("503 start with 'mail from ...'");
+	$self-> _put("503 start with 'mail from: ...'");
 	$self->{faults}++;
 	return 1;
     }
     
     if(!@{$self->{TO}}) {
-	$self->_put("503 specify recipients with 'rcpt'");
+	$self->_put("503 specify recipients with 'rcpt to: ...'");
 	$self->{faults}++;
 	return 1;
     }
@@ -214,12 +233,11 @@ sub _quit {
 }
 
 sub _hello {
-    shift->okay( "au contraire" );
+    shift->okay( "Welcome" );
 }
 
 1;
 __END__
-# POD begins here.
 
 =head1 NAME
 
@@ -243,8 +261,9 @@ Net::SMTP::Server::Client2 - A better client for Net::SMTP::Server.
 	my $count = 'aaa';
         my $client = new Net::SMTP::Server::Client2($conn) ||
                croak("Unable to handle client: $!\n");
+
 	$client->greet; # this is new
-        # the connecting client presents a message.
+
         while($client->get_message){ # this is different
 
 	if (length($client->{MSG}) > 1400000){
@@ -284,10 +303,12 @@ is a patched Net::SMTP::Server::Client module.
  $client->get_message returns before delivering a response
 code to the client.  $client->okay(...) and $client->too_large()
 and $client->fail(...) return the appropriate codes, rather than
-assuming that all messages were 250.  "Is that 250 with you?"
+assuming that all messages were 250.  "Is that 250 with you?"  
+$client->basta() will 421 and close, which is also an option after
+receiving a message you don't want to accept.
 
   $client->{faults} is the number of booboos the client made while
-   presenting the message, not doing anything with it yet
+   presenting the message, after 15 of them we 421 and close.
 
 And, Client2 is no longer is an autoloader or an exporter because it
 doesn't export anything or autoload.
@@ -300,7 +321,7 @@ doesn't export anything or autoload.
   even though he said "all reigths reserved."  He reserved all the
   rights, then he released it.  Go figure.
 
-  Client2,  released by me, in 2002,  contains minor patches that make
+  Client2,  released by me, in 2002,  contains changes that make
   the interface more complex,  and not backwards-compatible.
 
   You may distribute this package under the terms of either the GNU

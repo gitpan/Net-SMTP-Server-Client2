@@ -1,6 +1,0 @@
-Revision history for Perl extension Net::SMTP::Server::Client2.
-
-0.01  Mon Nov 11 20:46:49 2002
-	- original version; created by h2xs 1.22 with options
-		-b 5.0.0 -X Net::SMTP::Server::Client2
-
